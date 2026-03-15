@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Family Micro-Mindfulness Scheduler</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+* { font-family: 'Nunito', sans-serif; }
+body { background: linear-gradient(135deg, #fef3c7 0%, #fce7f3 50%, #e0e7ff 100%); min-height: 100vh; }
+.card-shadow { box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+.pulse-gentle { animation: pulseGentle 3s ease-in-out infinite; }
+@keyframes pulseGentle {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 0.9; }
+}
+.breathe-circle { animation: breathe 8s ease-in-out infinite; }
+@keyframes breathe {
+  0%, 100% { transform: scale(0.8); opacity: 0.6; }
+  50% { transform: scale(1.2); opacity: 1; }
+}
+.slide-up { animation: slideUp 0.4s ease-out; }
+@keyframes slideUp {
+  from { transform: translateY(30px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.fade-in { animation: fadeIn 0.5s ease-out; }
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.mood-btn { transition: all 0.2s; }
+.mood-btn:active { transform: scale(0.92); }
+.mood-btn.selected { ring: 3px; transform: scale(1.1); }
+input, select, button { font-size: 16px !important; }
+.timer-ring { transition: stroke-dashoffset 1s linear; }
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-thumb { background: #c4b5fd; border-radius: 4px; }
+</style>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        calm: { 50: '#faf5ff', 100: '#f3e8ff', 200: '#e9d5ff', 300: '#d8b4fe', 400: '#c084fc', 500: '#a855f7', 600: '#9333ea', 700: '#7e22ce' },
+        warm: { 50: '#fff7ed', 100: '#ffedd5', 200: '#fed7aa', 300: '#fdba74', 400: '#fb923c', 500: '#f97316' },
+        sky: { 50: '#f0f9ff', 100: '#e0f2fe', 200: '#bae6fd', 300: '#7dd3fc', 400: '#38bdf8' }
+      }
+    }
+  }
+}
+</script>
+</head>
+<body>
+
+<div x-data="app()" x-init="init()" class="max-w-md mx-auto min-h-screen pb-24">
+
+  <!-- Header -->
+  <header class="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-calm-100 px-4 py-3">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <span class="text-2xl">🧘‍♀️</span>
+        <div>
+          <h1 class="text-lg font-extrabold text-calm-700 leading-tight">Micro-Mindfulness</h1>
+          <p class="text-xs text-calm-400 font-semibold">Family Calm Coach</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span x-show="streak > 0" class="bg-warm-100 text-warm-500 text-xs font-bold px-2 py-1 rounded-full">🔥 <span x-text="streak"></span> day streak</span>
+        <button @click="currentView = 'settings'" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-calm-50 transition">
+          <span class="text-xl">⚙️</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Onboarding -->
+  <template x-if="currentView === 'onboarding'">
+    <div class="p-5 slide-up">
+      <div class="text-center mb-6 mt-4">
+        <div class="text-6xl mb-3">🌈</div>
+        <h2 class="text-2xl font-extrabold text-calm-700 mb-2">Welcome, Family!</h2>
+        <p class="text-calm-500 text-sm">Let's set up your household for quick, joyful mindfulness moments together.</p>
+      </div>
+
+      <!-- Step 1: Parent info -->
+      <div x-show="onboardingStep === 1" class="space-y-4 slide-up">
+        <div class="bg-white rounded-2xl p-5 card-shadow">
+          <label class="block text-sm font-bold text-calm-600 mb-2">👋 Your name</label>
+          <input x-model="parentName" type="text" placeholder="e.g., Sarah" class="w-full border-2 border-calm-100 rounded-xl px-4 py-3 focus:border-calm-400 focus:outline-none transition">
+        </div>
+        <button @click="onboardingStep = 2" :disabled="!parentName.trim()" class="w-full bg-calm-500 hover:bg-calm-600 disabled:bg-calm-200 text-white font-bold py-4 rounded-2xl transition text-lg">
+          Next → Add your kids
+        </button>
+      </div>
+
+      <!-- Step 2: Kids -->
+      <div x-show="onboardingStep === 2" class="space-y-4 slide-up">
+        <div class="bg-white rounded-2xl p-5 card-shadow">
+          <label class="block text-sm font-bold text-calm-600 mb-3">👶 Your children</label>
+          <template x-for="(child, i) in tempChildren" :key="i">
+            <div class="flex gap-2 mb-3">
+              <input x-model="child.name" type="text" placeholder="Name" class="flex-1 border-2 border-calm-100 rounded-xl px-3 py-2.5 focus:border-calm-400 focus:outline-none text-sm">
+              <select x-model="child.age" class="border-2 border-calm-100 rounded-xl px-2 py-2.5 focus:border-calm-400 focus:outline-none text-sm w-20">
+                <option value="">Age</option>
+                <template x-for="a in [3,4,5,6,7,8,9,10]"><option :value="a" x-text="a"></option></template>
+              </select>
+              <button @click="tempChildren.splice(i,1)" x-show="tempChildren.length > 1" class="text-red-300 hover:text-red-500 px-2 text-lg">✕</button>
+            </div>
+          </template>
+          <button @click="tempChildren.push({name:'',age:''})" class="text-calm-500 font-bold text-sm hover:text-calm-700 transition">+ Add another child</button>
+        </div>
+        <button @click="onboardingStep = 3" :disabled="!tempChildren.some(c => c.name && c.age)" class="w-full bg-calm-500 hover:bg-calm-600 disabled:bg-calm-200 text-white font-bold py-4 rounded-2xl transition text-lg">
+          Next → Set your schedule
+        </button>
+      </div>
+
+      <!-- Step 3: Schedule triggers -->
+      <div x-show="onboardingStep === 3" class="space-y-4 slide-up">
+        <div class="bg-white rounded-2xl p-5 card-shadow">
+          <label class="block text-sm font-bold text-calm-600 mb-3">⏰ When do you want mindfulness nudges?</label>
+          <div class="space-y-2">
+            <template x-for="trigger in availableTriggers" :key="trigger.id">
+              <button @click="toggleTrigger(trigger.id)"
+                :class="selectedTriggers.includes(trigger.id) ? 'bg-calm-100 border-calm-400 text-calm-700' : 'bg-white border-gray-200 text-gray-500'"
+                class="w-full flex items-center gap-3 p-3 rounded-xl border-2 transition mood-btn text-left">
+                <span class="text-2xl" x-text="trigger.emoji"></span>
+                <div>
+                  <div class="font-bold text-sm" x-text="trigger.label"></div>
+                  <div class="text-xs opacity-70" x-text="trigger.desc"></div>
+                </div>
+              </button>
+            </template>
+          </div>
+        </div>
+        <button @click="completeOnboarding()" :disabled="selectedTriggers.length === 0" class="w-full bg-gradient-to-r from-calm-500 to-pink-400 hover:from-calm-600 hover:to-pink-500 disabled:from-calm-200 disabled:to-pink-200 text-white font-bold py-4 rounded-2xl transition text-lg">
+          ✨ Start our mindfulness journey!
+        </button>
+      </div>
+    </div>
+  </template>
+
+  <!-- Home View -->
+  <template x-if="currentView === 'home'">
+    <div class="p-4 space-y-4 fade-in">
+
+      <!-- Greeting -->
+      <div class="bg-white rounded-2xl p-5 card-shadow">
+        <p class="text-calm-500 text-sm font-semibold" x-text="getGreeting()"></p>
+        <h2 class="text-xl font-extrabold text-calm-700 mt-1">Ready for calm? 🌿</h2>
+        <p class="text-xs text-calm-400 mt-1" x-text="getTodayStats()"></p>
+      </div>
+
+      <!-- Quick Check-in -->
+      <div class="bg-white rounded-2xl p-5 card-shadow">
+        <h3 class="font-bold text-calm-600 text-sm mb-3">How is everyone feeling right now?</h3>
+        <div class="space-y-3">
+          <template x-for="member in allMembers" :key="member.name">
+            <div>
+              <p class="text-xs font-semibold text-calm-500 mb-1.5" x-text="member.name + (member.age ? ' (age ' + member.age + ')' : ' 👩‍👧')"></p>
+              <div class="flex gap-2 flex-wrap">
+                <template x-for="mood in moods" :key="mood.id">
+                  <button @click="setMood(member.name, mood.id)"
+                    :class="getMood(member.name) === mood.id ? 'ring-2 ring-calm-400 scale-110 bg-calm-50' : 'bg-gray-50 hover:bg-gray-100'"
+                    class="mood-btn flex flex-col items-center p-2 rounded-xl min-w-[52px] transition">
+                    <span class="text-2xl" x-text="mood.emoji"></span>
+                    <span class="text-[10px] font-semibold text-gray-500 mt-0.5" x-text="mood.label"></span>
+                  </button>
+                </template>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- Main Action: Generate Practice -->
+      <button @click="generatePractice()" :disabled="isGenerating" class="w-full bg-gradient-to-r from-calm-500 via-purple-400 to-pink-400 hover:from-calm-600 hover:via-purple-500 hover:to-pink-500 disabled:opacity-50 text-white font-extrabold py-5 rounded-2xl transition text-lg card-shadow pulse-gentle relative overflow-hidden">
+        <span x-show="!isGenerating" class="flex items-center justify-center gap-2">
+          <span class="text-2xl">🧘</span>
+          Get Our Micro-Practice
+        </span>
+        <span x-show="isGenerating" class="flex items-center justify-center gap-2">
+          <svg class="animate-spin h-5 w-5" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+          Creating your perfect practice...
+        </span>
+      </button>
+
+      <!-- Scheduled Practices -->
+      <div x-show="scheduledPractices.length > 0" class="bg-white rounded-2xl p-5 card-shadow">
+        <h3 class="font-bold text-calm-600 text-sm mb-3">📅 Today's Schedule</h3>
+        <div class="space-y-2">
+          <template x-for="(practice, i) in scheduledPractices" :key="i">
+            <button @click="startPractice(practice)" class="w-full flex items-center gap-3 p-3 rounded-xl bg-calm-50 hover:bg-calm-100 transition text-left">
+              <span class="text-2xl" x-text="practice.emoji || '🌸'"></span>
+              <div class="flex-1 min-w-0">
+                <div class="font-bold text-sm text-calm-700 truncate" x-text="practice.title"></div>
+                <div class="text-xs text-calm-400" x-text="practice.duration + ' min • ' + practice.trigger"></div>
+              </div>
+              <span :class="practice.completed ? 'bg-green-100 text-green-600' : 'bg-calm-100 text-calm-500'" class="text-xs font-bold px-2 py-1 rounded-full" x-text="practice.completed ? '✓ Done' : 'Start'"></span>
+            </button>
+          </template>
+        </div>
+      </div>
+
+      <!-- History -->
+      <div x-show="practiceHistory.length > 0">
+        <button @click="showHistory = !showHistory" class="text-calm-500 font-bold text-sm flex items-center gap-1 mb-2">
+          <span x-text="showHistory ? '▾' : '▸'"></span> Recent practices (<span x-text="practiceHistory.length"></span>)
+        </button>
+        <div x-show="showHistory" class="space-y-2 slide-up">
+          <template x-for="(h, i) in practiceHistory.slice(0, 5)" :key="i">
+            <div class="bg-white/60 rounded-xl p-3 text-sm">
+              <div class="font-bold text-calm-600" x-text="h.title"></div>
+              <div class="text-xs text-calm-400" x-text="new Date(h.completedAt).toLocaleDateString() + ' • ' + h.duration + ' min • ' + (h.rating ? '⭐'.repeat(h.rating) : 'No rating')"></div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- Practice View -->
+  <template x-if="currentView === 'practice'">
+    <div class="p-4 space-y-4 fade-in">
+      <button @click="currentView = 'home'" class="text-calm-500 font-bold text-sm flex items-center gap-1 mb-2">← Back</button>
+
+      <div class="bg-white rounded-2xl p-6 card-shadow text-center">
+        <span class="text-5xl block mb-3" x-text="currentPractice.emoji || '🧘'"></span>
+        <h2 class="text-xl font-extrabold text-calm-700 mb-1" x-text="currentPractice.title"></h2>
+        <p class="text-sm text-calm-400 mb-4" x-text="currentPractice.duration + ' minutes • For the whole family'"></p>
+
+        <!-- Timer -->
+        <div class="relative w-40 h-40 mx-auto mb-4" x-show="timerActive || timerPaused">
+          <svg class="w-full h-full transform -rotate-90" viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r="52" fill="none" stroke="#e9d5ff" stroke-width="8"/>
+            <circle cx="60" cy="60" r="52" fill="none" stroke="#a855f7" stroke-width="8"
+              stroke-linecap="round" class="timer-ring"
+              :stroke-dasharray="326.73"
+              :stroke-dashoffset="326.73 * (1 - timerProgress)"/>
+          </svg>
+          <div class="absolute inset-0 flex flex-col items-center justify-center">
+            <span class="text-3xl font-extrabold text-calm-700" x-text="formatTime(timerSeconds)"></span>
+            <span class="text-xs text-calm-400" x-text="timerPaused ? 'Paused' : 'remaining'"></span>
+          </div>
+        </div>
+
+        <!-- Steps -->
+        <div class="text-left space-y-3 mb-5">
+          <template x-for="(step, i) in currentPractice.steps || []" :key="i">
+            <div :class="i <= currentStep ? 'bg-calm-50 border-calm-200' : 'bg-gray-50 border-gray-100'" class="p-4 rounded-xl border-2 transition">
+              <div class="flex items-start gap-2">
+                <span :class="i < currentStep ? 'bg-green-400' : i === currentStep ? 'bg-calm-400' : 'bg-gray-300'" class="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mt-0.5" x-text="i < currentStep ? '✓' : (i+1)"></span>
+                <div>
+                  <p class="text-sm font-semibold text-calm-700" x-text="step.instruction"></p>
+                  <p x-show="step.parentTip" class="text-xs text-calm-400 mt-1 italic" x-text="'💡 Parent tip: ' + step.parentTip"></p>
+                  <p x-show="step.kidScript" class="text-xs text-warm-500 mt-1" x-text="'🗣️ Say to kids: \"' + step.kidScript + '\"'"></p>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <!-- Controls -->
+        <div class="flex gap-3">
+          <template x-if="!timerActive && !timerPaused && !practiceComplete">
+            <button @click="startTimer()" class="flex-1 bg-calm-500 hover:bg-calm-600 text-white font-bold py-4 rounded-2xl transition text-lg">
+              ▶️ Start Practice
+            </button>
+          </template>
+          <template x-if="timerActive">
+            <div class="flex gap-3 w-full">
+              <button @click="pauseTimer()" class="flex-1 bg-warm-400 hover:bg-warm-500 text-white font-bold py-4 rounded-2xl transition">⏸ Pause</button>
+              <button @click="nextStep()" class="flex-1 bg-calm-500 hover:bg-calm-600 text-white font-bold py-4 rounded-2xl transition">Next Step →</button>
+            </div>
+          </template>
+          <template x-if="timerPaused">
+            <div class="flex gap-3 w-full">
+              <button @click="resumeTimer()" class="flex-1 bg-calm-500 hover:bg-calm-600 text-white font-bold py-4 rounded-2xl transition">▶️ Resume</button>
+              <button @click="finishPractice()" class="flex-1 bg-pink-400 hover:bg-pink-500 text-white font-bold py-4 rounded-2xl transition">End Early</button>
+            </div>
+          </template>
+          <template x-if="practiceComplete">
+            <div class="w-full space-y-3 slide-up">
+              <div class="text-4xl">🎉</div>
+              <p class="font-bold text-calm-700 text-lg">Great job, family!</p>
+              <div>
+                <p class="text-sm text-calm-500 mb-2">How was this practice?</p>
+                <div class="flex justify-center gap-2">
+                  <template x-for="r in [1,2,3,4,5]" :key="r">
+                    <button @click="ratePractice(r)" :class="practiceRating >= r ? 'text-yellow-400' : 'text-gray-300'" class="text-3xl transition hover:scale-110">★</button>
+                  </template>
+                </div>
+              </div>
+              <button @click="savePracticeAndReturn()" class="w-full bg-calm-500 hover:bg-calm-600 text-white font-bold py-4 rounded-2xl transition text-lg mt-3">
+                ✨ Done — Back to Home
+              </button>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- Settings View -->
+  <template x-if="currentView === 'settings'">
+    <div class="p-4 space-y-4 fade-in">
+      <button @click="currentView = 'home'" class="text-calm-500 font-bold text-sm flex items-center gap-1 mb-2">← Back</button>
+      <h2 class="text-xl font-extrabold text-calm-700">⚙️ Family Settings</h2>
+
+      <div class="bg-white rounded-2xl p-5 card-shadow space-y-4">
+        <div>
+          <label class="block text-sm font-bold text-calm-600 mb-1">Your name</label>
+          <input x-model="parentName" @change="saveData()" type="text" class="w-full border-2 border-calm-100 rounded-xl px-4 py-3 focus:border-calm-400 focus:outline-none">
+        </div>
+
+        <div>
+          <label class="block text-sm font-bold text-calm-600 mb-2">Children</label>
+          <template x-for="(child, i) in children" :key="i">
+            <div class="flex gap-2 mb-2">
+              <input x-model="child.name" @change="saveData()" type="text" placeholder="Name" class="flex-1 border-2 border-calm-100 rounded-xl px-3 py-2.5 focus:border-calm-400 focus:outline-none text-sm">
+              <select x-model="child.age" @change="saveData()" class="border-2 border-calm-100 rounded-xl px-2 py-2.5 focus:border-calm-400 focus:outline-none text-sm w-20">
+                <template x-for="a in [3,4,5,6,7,8,9,10]"><option :value="a" x-text="a"></option></template>
+              </select>
+              <button @click="children.splice(i,1); saveData()" class="text-red-300 hover:text-red-500 px-2">✕</button>
+            </div>
+          </template>
+          <button @click="children.push({name:'',age:''})" class="text-calm-500 font-bold text-sm">+ Add child</button>
+        </div>
+
+        <div>
+          <label class="block text-sm font-bold text-calm-600 mb-2">Mindfulness triggers</label>
+          <div class="space-y-2">
+            <template x-for="trigger in availableTriggers" :key="trigger.id">
+              <button @click="toggleTrigger(trigger.id); saveData()"
+                :class="selectedTriggers.includes(trigger.id) ? 'bg-calm-100 border-calm-400' : 'bg-white border-gray-200'"
+                class="w-full flex items-center gap-3 p-3 rounded-xl border-2 transition text-left">
+                <span class="text-xl" x-text="trigger.emoji"></span>
+                <span class="text-sm font-semibold" x-text="trigger.label"></span>
+              </button>
+            </template>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl p-5 card-shadow">
+        <h3 class="font-bold text-calm-600 text-sm mb-2">📊 Stats</h3>
+        <div class="grid grid-cols-3 gap-3 text-center">
+          <div class="bg-calm-50 rounded-xl p-3">
+            <div class="text-2xl font-extrabold text-calm-600" x-text="practiceHistory.length"></div>
+            <div class="text-xs text-calm-400">Practices</div>
+          </div>
+          <div class="bg-warm-50 rounded-xl p-3">
+            <div class="text-2xl font-extrabold text-warm-500" x-text="streak"></div>
+            <div class="text-xs text-warm-400">Day Streak</div>
+          </div>
+          <div class="bg-pink-50 rounded-xl p-3">
+            <div class="text-2xl font-extrabold text-pink-500" x-text="totalMinutes"></div>
+            <div class="text-xs text-pink-400">Minutes</div>
+          </div>
+        </div>
+      </div>
+
+      <button @click="if(confirm('Reset all data?')){localStorage.clear();location.reload()}" class="w-full text-red-400 font-bold text-sm py-3">Reset All Data</button>
+    </div>
+  </template>
+
+  <!-- Bottom Nav -->
+  <nav x-show="currentView !== 'onboarding' && currentView !== 'practice'" class="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-calm-100 z-50">
+    <div class="max-w-md mx-auto flex justify-around py-2">
+      <button @click="currentView = 'home'" :class="currentView === 'home' ? 'text-calm-600' : 'text-gray-400'" class="flex flex-col items-center py-1 px-4 min-w-[60px] transition">
+        <span class="text-xl">🏠</span>
+        <span class="text-[10px] font-bold">Home</span>
+      </button>
+      <button @click="generatePractice()" class="flex flex-col items-center py-1 px-4 min-w-[60px] transition text-calm-500">
+        <span class="text-xl">🧘</span>
+        <span class="text-[10px] font-bold">Practice</span>
+      </button>
+      <button @click="currentView = 'settings'" :class="currentView === 'settings' ? 'text-calm-600' : 'text-gray-400'" class="flex flex-col items-center py-1 px-4 min-w-[60px] transition">
+        <span class="text-xl">⚙️</span>
+        <span class="text-[10px] font-bold">Settings</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Loading Overlay -->
+  <div x-show="isGenerating" class="fixed inset-0 bg-black/30 backdrop-blur-sm z-[100] flex items-center justify-center">
+    <div class="bg-white rounded-3xl p-8 text-center card-shadow max-w-xs mx-4">
+      <div class="breathe-circle w-20 h-20 bg-gradient-to-br from-calm-300 to-pink-300 rounded-full mx-auto mb-4"></div>
+      <p class="font-bold text-calm-700 text-lg">Creating your practice...</p>
+      <p class="text-sm text-calm-400 mt-1">Tailoring to your family's mood & schedule ✨</p>
+    </div>
+  </div>
+
+  <!-- Error Toast -->
+  <div x-show="errorMsg" x-transition class="fixed top-20 left-4 right-4 max-w-md mx-auto bg-red-50 border border-red-200 text-red-700 rounded-2xl p-4 z-[100] card-shadow">
+    <div class="flex items-start gap-2">
+      <span class="text-xl">😟</span>
+      <div class="flex-1">
+        <p class="text-sm font-semibold" x-text="errorMsg"></p>
+        <button @click="errorMsg = ''" class="text-xs text-red-500 font-bold mt-1">Dismiss</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Global AI tracking variables
+window.aiTotalInputTokens = 0;
+window.aiTotalOutputTokens = 0;
+window.aiTotalTime = 0;
+window.aiAliasTimes = {};
+
+function app() {
+  return {
+    // State
+    currentView: 'onboarding',
+    onboardingStep: 1,
+    parentName: '',
+    children: [],
+    tempChildren: [{ name: '', age: '' }],
+    selectedTriggers: [],
+    currentMoods: {},
+    scheduledPractices: [],
+    practiceHistory: [],
+    currentPractice: {},
+    currentStep: 0,
+    timerActive: false,
+    timerPaused: false,
+    timerSeconds: 0,
+    timerTotal: 0,
+    timerProgress: 0,
+    timerInterval: null,
+    practiceComplete: false,
+    practiceRating: 0,
+    isGenerating: false,
+    errorMsg: '',
+    showHistory: false,
+    streak: 0,
+    totalMinutes: 0,
+
+    moods: [
+      { id: 'happy', emoji: '😊', label: 'Happy' },
+      { id: 'calm', emoji: '😌', label: 'Calm' },
+      { id: 'anxious', emoji: '😰', label: 'Anxious' },
+      { id: 'angry', emoji: '😤', label: 'Angry' },
+      { id: 'sad', emoji: '😢', label: 'Sad' },
+      { id: 'tired', emoji: '😴', label: 'Tired' },
+      { id: 'hyper', emoji: '🤪', label: 'Hyper' },
+    ],
+
+    availableTriggers: [
+      { id: 'morning', emoji: '🌅', label: 'Morning Wake-up', desc: 'Start the day centered together' },
+      { id: 'school_drop', emoji: '🚗', label: 'Before School/Daycare', desc: 'Calm transition before drop-off' },
+      { id: 'after_pickup', emoji: '🏫', label: 'After Pickup', desc: 'Decompress after a busy day' },
+      { id: 'before_dinner', emoji: '🍽️', label: 'Before Dinner', desc: 'Settle into family time' },
+      { id: 'bedtime', emoji: '🌙', label: 'Bedtime Routine', desc: 'Wind down for peaceful sleep' },
+      { id: 'meltdown', emoji: '🌊', label: 'Meltdown Moment', desc: 'Emergency calm-down tool' },
+      { id: 'weekend', emoji: '☀️', label: 'Weekend Fun', desc: 'Longer weekend practice' },
+    ],
+
+    get allMembers() {
+      const members = [{ name: this.parentName || 'Parent', age: null }];
+      this.children.forEach(c => { if (c.name) members.push(c); });
+      return members;
+    },
+
+    init() {
+      const saved = localStorage.getItem('mindfulness_data');
+      if (saved) {
+        try {
+          const data = JSON.parse(saved);
+          this.parentName = data.parentName || '';
+          this.children = data.children || [];
+          this.selectedTriggers = data.selectedTriggers || [];
+          this.currentMoods = data.currentMoods || {};
+          this.practiceHistory = data.practiceHistory || [];
+          this.scheduledPractices = data.scheduledPractices || [];
+          this.calculateStats();
+          if (this.parentName && this.children.length > 0) {
+            this.currentView = 'home';
+            this.refreshSchedule();
+          }
+        } catch (e) {
+          console.error('Load error', e);
+        }
+      }
+    },
+
+    saveData() {
+      localStorage.setItem('mindfulness_data', JSON.stringify({
+        parentName: this.parentName,
+        children: this.children,
+        selectedTriggers: this.selectedTriggers,
+        currentMoods: this.currentMoods,
+        practiceHistory: this.practiceHistory,
+        scheduledPractices: this.scheduledPractices,
+      }));
+    },
+
+    toggleTrigger(id) {
+      const idx = this.selectedTriggers.indexOf(id);
+      if (idx >= 0) this.selectedTriggers.splice(idx, 1);
+      else this.selectedTriggers.push(id);
+    },
+
+    completeOnboarding() {
+      this.children = this.tempChildren.filter(c => c.name && c.age);
+      this.saveData();
+      this.currentView = 'home';
+      this.refreshSchedule();
+    },
+
+    setMood(name, mood) {
+      this.currentMoods[name] = mood;
+      this.saveData();
+    },
+
+    getMood(name) {
+      return this.currentMoods[name] || '';
+    },
+
+    getGreeting() {
+      const hour = new Date().getHours();
+      const name = this.parentName || 'there';
+      if (hour < 12) return `Good morning, ${name}! 🌅`;
+      if (hour < 17) return `Good afternoon, ${name}! ☀️`;
+      return `Good evening, ${name}! 🌙`;
+    },
+
+    getTodayStats() {
+      const today = new Date().toDateString();
+      const todayCount = this.practiceHistory.filter(h => new Date(h.completedAt).toDateString() === today).length;
+      return todayCount > 0 ? `${todayCount} practice${todayCount > 1 ? 's' : ''} done today 🌟` : 'No practices yet today — let\'s change that!';
+    },
+
+    calculateStats() {
+      this.totalMinutes = this.practiceHistory.reduce((sum, h) => sum + (h.duration || 0), 0);
+      // Calculate streak
+      let streak = 0;
+      const days = [...new Set(this.practiceHistory.map(h => new Date(h.completedAt).toDateString()))].sort((a, b) => new Date(b) - new Date(a));
+      if (days.length > 0) {
+        const today = new Date().toDateString();
+        const yesterday = new Date(Date.now() - 86400000).toDateString();
+        if (days[0] === today || days[0] === yesterday) {
+          streak = 1;
+          for (let i = 1; i < days.length; i++) {
+            const diff = (new Date(days[i - 1]) - new Date(days[i])) / 86400000;
+            if (diff <= 1) streak++;
+            else break;
+          }
+        }
+      }
+      this.streak = streak;
+    },
+
+    refreshSchedule() {
+      const today = new Date().toDateString();
+      // Keep only today's incomplete practices
+      this.scheduledPractices = this.scheduledPractices.filter(p => p.date === today);
+      this.saveData();
+    },
+
+    async callAI(prompt, retries = 3) {
+      const startTime = Date.now();
+      for (let attempt = 0; attempt < retries; attempt++) {
+        try {
+          const resp = await fetch('https://16504442930.work/run_prompt', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              alias: 'genericAI',
+              params: { prompt }
+            })
+          });
+          if (!resp.ok) {
+            const errText = await resp.text();
+            if (attempt < retries - 1) continue;
+            throw new Error(`API returned status ${resp.status}: ${errText}`);
+          }
+          const data = await resp.json();
+          const elapsed = Date.now() - startTime;
+          window.aiTotalTime += elapsed;
+          window.aiAliasTimes['genericAI'] = (window.aiAliasTimes['genericAI'] || 0) + elapsed;
+          if (data.input_tokens) window.aiTotalInputTokens += data.input_tokens;
+          if (data.output_tokens) window.aiTotalOutputTokens += data.output_tokens;
+          return data;
+        } catch (e) {
+          if (attempt >= retries - 1) {
+            // Format error with AI
+            try {
+              const errResp = await fetch('https://16504442930.work/run_prompt', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  alias: 'genericAI',
+                  params: {
+                    prompt: `Reformat this error message to be user-friendly and empower the user to fix it. Error: "${e.message}". Return JSON with key "friendlyError" as a string.`
+                  }
+                })
+              });
+              if (errResp.ok) {
+                const errData = await errResp.json();
+                throw new Error(errData.friendlyError || e.message);
+              }
+            } catch (_) {}
+            throw e;
+          }
+        }
+      }
+    },
+
+    async generatePractice() {
+      this.isGenerating = true;
+      this.errorMsg = '';
+
+      try {
+        const childrenInfo = this.children.map(c => {
+          const mood = this.currentMoods[c.name] || 'unknown';
+          return `${c.name} (age ${c.age}, current mood: ${mood})`;
+        }).join('; ');
+
+        const parentMood = this.currentMoods[this.parentName] || 'unknown';
+        const hour = new Date().getHours();
+        let timeContext = 'morning';
+        if (hour >= 12 && hour < 17) timeContext = 'afternoon';
+        else if (hour >= 17 && hour < 20) timeContext = 'evening';
+        else if (hour >= 20) timeContext = 'bedtime';
+
+        const topPractices = this.practiceHistory.slice(-10).filter(h => h.rating >= 4).map(h => h.title).join(', ');
+        const lowPractices = this.practiceHistory.slice(-10).filter(h => h.rating && h.rating <= 2).map(h => h.title).join(', ');
+
+        const triggers = this.selectedTriggers.join(', ');
+
+        const prompt = `You are a family mindfulness expert creating a micro-mindfulness practice for a family. Here is the context:
+
+Parent: ${this.parentName} (mood: ${parentMood})
+Children: ${childrenInfo}
+Time of day: ${timeContext} (hour: ${hour})
+Selected daily triggers: ${triggers}
+Practices they enjoyed: ${topPractices || 'none yet'}
+Practices they didn't enjoy: ${lowPractices || 'none yet'}
+
+Create ONE micro-mindfulness practice that is 2-7 minutes long, appropriate for the children's ages and current moods, and relevant to this time of day. The practice should be simple enough for young children but meaningful for parents too.
+
+If anyone is feeling anxious or angry, prioritize calming techniques. If they're tired, use gentle energizing techniques. If hyper, use grounding techniques.
+
+Return EXACTLY this JSON structure:
+{
+  "title": string (short catchy name, max 6 words),
+  "emoji": string (single emoji representing the practice),
+  "duration": number (minutes, between 2 and 7),
+  "trigger": string (which trigger/time this fits best),
+  "description": string (one sentence overview),
+  "steps": [
+    {
+      "instruction": string (clear instruction, 1-2 sentences),
+      "parentTip": string (optional tip for the parent, or empty string),
+      "kidScript": string (optional fun script to say to kids, or empty string),
+      "durationSeconds": number (how long this step takes in seconds)
+    }
+  ] (array of 3-6 step objects)
+}
+
+Make it fun, age-appropriate, and engaging. Use playful language for kid scripts. Steps should be concrete and actionable. Total step durations should roughly equal the practice duration in seconds.`;
+
+        const result = await this.callAI(prompt);
+
+        let practice;
+        if (result.title) {
+          practice = result;
+        } else if (result.data) {
+          practice = typeof result.data === 'string' ? JSON.parse(result.data) : result.data;
+        } else {
+          // Try to find the practice object in any nested key
+          const keys = Object.keys(result);
+          for (const key of keys) {
+            if (result[key] && typeof result[key] === 'object' && result[key].title) {
+              practice = result[key];
+              break;
+            }
+          }
+          if (!practice) practice = result;
+        }
+
+        if (!practice.title || !practice.steps) {
+          throw new Error('Invalid practice format received');
+        }
+
+        this.currentPractice = practice;
+        this.currentStep = 0;
+        this.practiceComplete = false;
+        this.practiceRating = 0;
+        this.timerActive = false;
+        this.timerPaused = false;
+
+        // Add to scheduled
+        const today = new Date().toDateString();
+        this.scheduledPractices.push({
+          ...practice,
+          date: today,
+          completed: false,
+          generatedAt: Date.now()
+        });
+        this.saveData();
+        this.currentView = 'practice';
+      } catch (e) {
+        console.error('Generate error', e);
+        this.errorMsg = e.message || 'Something went wrong. Please try again!';
+      } finally {
+        this.isGenerating = false;
+      }
+    },
+
+    startPractice(practice) {
+      this.currentPractice = practice;
+      this.currentStep = 0;
+      this.practiceComplete = false;
+      this.practiceRating = 0;
+      this.timerActive = false;
+      this.timerPaused = false;
+      this.currentView = 'practice';
+    },
+
+    startTimer() {
+      const totalSec = (this.currentPractice.steps || []).reduce((s, step) => s + (step.durationSeconds || 30), 0);
+      this.timerTotal = totalSec;
+      this.timerSeconds = totalSec;
+      this.timerProgress = 1;
+      this.timerActive = true;
+      this.timerPaused = false;
+      this.currentStep = 0;
+      this.runTimer();
+    },
+
+    runTimer() {
+      if (this.timerInterval) clearInterval(this.timerInterval);
+      this.timerInterval = setInterval(() => {
+        if (this.timerSeconds > 0) {
+          this.timerSeconds--;
+          this.timerProgress = this.timerSeconds / this.timerTotal;
+          // Auto-advance steps
+          const steps = this.currentPractice.steps || [];
+          let elapsed = this.timerTotal - this.timerSeconds;
+          let cumulative = 0;
+          for (let i = 0; i < steps.length; i++) {
+            cumulative += steps[i].durationSeconds || 30;
+            if (elapsed <= cumulative) {
+              this.currentStep = i;
+              break;
+            }
+          }
+        } else {
+          this.finishPractice();
+        }
+      }, 1000);
+    },
+
+    pauseTimer() {
+      this.timerActive = false;
+      this.timerPaused = true;
+      if (this.timerInterval) clearInterval(this.timerInterval);
+    },
+
+    resumeTimer() {
+      this.timerActive = true;
+      this.timerPaused = false;
+      this.runTimer();
+    },
+
+    nextStep() {
+      const steps = this.currentPractice.steps || [];
+      if (this.currentStep < steps.length - 1) {
+        this.currentStep++;
+      } else {
+        this.finishPractice();
+      }
+    },
+
+    finishPractice() {
+      if (this.timerInterval) clearInterval(this.timerInterval);
+      this.timerActive = false;
+      this.timerPaused = false;
+      this.practiceComplete = true;
+      this.currentStep = (this.currentPractice.steps || []).length;
+    },
+
+    ratePractice(r) {
+      this.practiceRating = r;
+    },
+
+    savePracticeAndReturn() {
+      const entry = {
+        title: this.currentPractice.title,
+        emoji: this.currentPractice.emoji,
+        duration: this.currentPractice.duration,
+        trigger: this.currentPractice.trigger,
+        rating: this.practiceRating,
+        completedAt: Date.now(),
+        moods: { ...this.currentMoods }
+      };
+      this.practiceHistory.unshift(entry);
+
+      // Mark scheduled as completed
+      const idx = this.scheduledPractices.findIndex(p => p.title === this.currentPractice.title && !p.completed);
+      if (idx >= 0) this.scheduledPractices[idx].completed = true;
+
+      this.calculateStats();
+      this.saveData();
+      this.currentView = 'home';
+    },
+
+    formatTime(seconds) {
+      const m = Math.floor(seconds / 60);
+      const s = seconds % 60;
+      return `${m}:${s.toString().padStart(2, '0')}`;
+    }
+  };
+}
+</script>
+</body>
+</html>
